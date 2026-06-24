@@ -1,0 +1,310 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Neon Dodge</title>
+    <style>
+        :root {
+            --bg-color: #05050a;
+            --neon-blue: #00f0ff;
+            --neon-pink: #ff007f;
+            --neon-green: #39ff14;
+            --text-color: #ffffff;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .game-wrapper {
+            text-align: center;
+            position: relative;
+        }
+
+        .score-board {
+            display: flex;
+            justify-content: space-between;
+            width: 400px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            letter-spacing: 1px;
+        }
+
+        #score { color: var(--neon-green); }
+        #high-score { color: var(--neon-blue); }
+
+        canvas {
+            border: 3px solid #1a1a3a;
+            background-color: #0b0b1e;
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.15);
+            cursor: none; /* Hides mouse over the game */
+            border-radius: 8px;
+            display: block;
+        }
+
+        .screen-overlay {
+            position: absolute;
+            top: 40px;
+            left: 0;
+            width: 400px;
+            height: 500px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(5, 5, 10, 0.85);
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 2rem;
+            color: var(--neon-blue);
+            text-shadow: 0 0 10px var(--neon-blue);
+            text-transform: uppercase;
+        }
+
+        p {
+            margin: 0 0 20px 0;
+            color: #8a8a9e;
+        }
+
+        .start-btn {
+            background: transparent;
+            border: 2px solid var(--neon-pink);
+            color: var(--neon-pink);
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            cursor: pointer;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(255, 0, 127, 0.2);
+            transition: all 0.2s ease;
+        }
+
+        .start-btn:hover {
+            background: var(--neon-pink);
+            color: #000;
+            box-shadow: 0 0 20px var(--neon-pink);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="nav-links" style="position:absolute; top:20px; left:20px; z-index:10; display:flex; gap:10px;">
+        <a href="index.Html" style="color:#00f0ff; text-decoration:none; border:1px solid #00f0ff; padding:8px 12px; border-radius:6px;">← Portfolio</a>
+        <a href="css/Scratch.html" style="color:#39ff14; text-decoration:none; border:1px solid #39ff14; padding:8px 12px; border-radius:6px;">Passion Project</a>
+    </div>
+
+    <div class="game-wrapper">
+        <div class="score-board">
+            <div>SCORE: <span id="score">0</span></div>
+            <div>HIGH: <span id="high-score">0</span></div>
+        </div>
+
+        <canvas id="gameCanvas" width="400" height="500"></canvas>
+
+        <div id="start-screen" class="screen-overlay">
+            <h1>Neon Dodge</h1>
+            <p>Move mouse/finger to dodge pink blocks & catch green stars!</p>
+            <button class="start-btn" onclick="startGame()">Launch</button>
+        </div>
+
+        <div id="gameover-screen" class="screen-overlay hidden">
+            <h1 style="color: var(--neon-pink); text-shadow: 0 0 10px var(--neon-pink);">System Crash</h1>
+            <p id="final-score-text">You scored 0 points</p>
+            <button class="start-btn" onclick="startGame()">Restart</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game configuration elements
+        let score = 0;
+        let highScore = 0;
+        let gameActive = false;
+        let obstacles = [];
+        let stars = [];
+        let spawnTimer = 0;
+
+        // Player Attributes
+        const player = {
+            x: 200,
+            y: 430,
+            radius: 12,
+            color: '#00f0ff'
+        };
+
+        // Track movement inputs
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            // Center the player on the mouse X coordinate
+            player.x = e.clientX - rect.left;
+            
+            // Constrain player to canvas bounds
+            if (player.x < player.radius) player.x = player.radius;
+            if (player.x > canvas.width - player.radius) player.x = canvas.width - player.radius;
+        });
+
+        // Touch support for mobile devices
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            player.x = e.touches[0].clientX - rect.left;
+            
+            if (player.x < player.radius) player.x = player.radius;
+            if (player.x > canvas.width - player.radius) player.x = canvas.width - player.radius;
+        }, { passive: false });
+
+        function startGame() {
+            // Reset state variables
+            score = 0;
+            obstacles = [];
+            stars = [];
+            spawnTimer = 0;
+            gameActive = true;
+
+            document.getElementById('score').innerText = score;
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('gameover-screen').classList.add('hidden');
+
+            // Begin rendering engine loop
+            requestAnimationFrame(updateGame);
+        }
+
+        function triggerGameOver() {
+            gameActive = false;
+            if (score > highScore) {
+                highScore = score;
+                document.getElementById('high-score').innerText = highScore;
+            }
+            document.getElementById('final-score-text').innerText = `You collected ${score} star cores!`;
+            document.getElementById('gameover-screen').classList.remove('hidden');
+        }
+
+        function updateGame() {
+            if (!gameActive) return;
+
+            // Clear display
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Draw Player Ship
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+            ctx.fillStyle = player.color;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = player.color;
+            ctx.fill();
+            ctx.closePath();
+
+            // 2. Spawn Hazard / Reward Entities
+            spawnTimer++;
+            if (spawnTimer % 20 === 0) {
+                // Determine speed multiplier based on score to scale difficulty dynamically
+                let speedBoost = Math.min(score / 5, 6);
+
+                if (Math.random() < 0.65) {
+                    // Spawn dangerous pink obstacle box
+                    obstacles.push({
+                        x: Math.random() * (canvas.width - 20),
+                        y: -20,
+                        width: 20 + Math.random() * 15,
+                        height: 20,
+                        speed: 4 + Math.random() * 3 + speedBoost
+                    });
+                } else {
+                    // Spawn helpful green target star
+                    stars.push({
+                        x: Math.random() * (canvas.width - 14) + 7,
+                        y: -15,
+                        radius: 7,
+                        speed: 3 + Math.random() * 2 + speedBoost
+                    });
+                }
+            }
+
+            // 3. Update & Draw Hazards (Pink Boxes)
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let obs = obstacles[i];
+                obs.y += obs.speed;
+
+                ctx.fillStyle = '#ff007f';
+                ctx.shadowColor = '#ff007f';
+                ctx.shadowBlur = 10;
+                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+
+                // Collision Logic: Box vs Circle bounding check
+                let closestX = Math.max(obs.x, Math.min(player.x, obs.x + obs.width));
+                let closestY = Math.max(obs.y, Math.min(player.y, obs.y + obs.height));
+                let distanceX = player.x - closestX;
+                let distanceY = player.y - closestY;
+                let distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
+
+                if (distanceSquared < (player.radius * player.radius)) {
+                    triggerGameOver();
+                    return;
+                }
+
+                // Cleanup objects that go off screen
+                if (obs.y > canvas.height) {
+                    obstacles.splice(i, 1);
+                }
+            }
+
+            // 4. Update & Draw Collection Targets (Green Stars)
+            for (let i = stars.length - 1; i >= 0; i--) {
+                let star = stars[i];
+                star.y += star.speed;
+
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#39ff14';
+                ctx.shadowColor = '#39ff14';
+                ctx.shadowBlur = 12;
+                ctx.fill();
+                ctx.closePath();
+
+                // Collision Logic: Circle vs Circle distance formula
+                let distCheckX = player.x - star.x;
+                let distCheckY = player.y - star.y;
+                let distance = Math.sqrt(distCheckX * distCheckX + distCheckY * distCheckY);
+
+                if (distance < player.radius + star.radius) {
+                    score++;
+                    document.getElementById('score').innerText = score;
+                    stars.splice(i, 1);
+                    continue;
+                }
+
+                if (star.y > canvas.height) {
+                    stars.splice(i, 1);
+                }
+            }
+
+            // Remove lighting bloom filters for subsequent frames optimization
+            ctx.shadowBlur = 0;
+
+            requestAnimationFrame(updateGame);
+        }
+    </script>
+</body>
+</html>
